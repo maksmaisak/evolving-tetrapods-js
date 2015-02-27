@@ -3,6 +3,27 @@
     <head>
         <meta charset="utf-8" id="viewport" content="width=device-width">
         <link rel="stylesheet" type="text/css" href="style.css">
+      <style>
+      *{margin:0;padding:0;}
+
+      body {
+              *width: 100vw;
+              overflow-x: hidden;
+      }
+      
+      #WorldWrapper {
+          width: 100%;
+          background-color: #eee;
+      }
+      
+      #WorldWrapper > * {
+          margin: auto;
+          left: 0;
+          right: 0;
+          position: absolute;
+      }
+
+      </style>
     </head>
     <body>  
         <div id="WorldWrapper">
