@@ -3,32 +3,134 @@
     <head>
         <meta charset="utf-8" id="viewport" content="width=device-width">
         <link rel="stylesheet" type="text/css" href="style.css">
-      <style>
-      *{margin:0;padding:0;}
+        <style>
+            *{margin:0;padding:0;}
 
-      body {
-              *width: 100vw;
-              overflow-x: hidden;
-      }
-      
-      #WorldWrapper {
-          width: 100%;
-          background-color: #eee;
-      }
-      
-      #WorldWrapper > * {
-          margin: auto;
-          left: 0;
-          right: 0;
-          position: absolute;
-      }
+            body {
+                *width: 100vw;
+                overflow-x: hidden;
+            }
 
-      </style>
+            #WorldWrapper {
+                width: 100%;
+                background-color: #eee;
+            }
+
+            #WorldWrapper > canvas {
+                margin: auto;
+                position: relative;
+            }
+
+            #Two {
+                width: 100%;
+                display: flex;
+                display: -webkit-flex;
+                display: -ms-flex;
+                justify-content: space-between;
+                font-family: Arial,sans-serif;
+                font-size: 50px;
+                text-align: center;
+            }
+
+            #Two > div{
+                flex: 1;
+                -webkit-flex: 1;
+                -ms-flex: 1;
+                background-color: #eee;
+                margin: 0px 2px;
+            }
+
+            #EntitiesStates {
+                height: 100px;
+                width: 100%;
+                display: flex;
+                display: -webkit-flex;
+                display: -ms-flex;
+                justify-content: space-between;
+            }
+
+            #EntitiesStates > div {
+                flex: 1;
+                -webkit-flex: 1;
+                -ms-flex: 1;
+
+                background-color: #ddd;
+                margin: 0px 2px;
+                text-align: center;
+                font-size: 40px;
+                font-family: sans-serif;
+                position: relative;
+            }
+
+            #EntitiesStates > div > p {
+                position: absolute;
+                top:50%;
+                left:50%;
+                -ms-transform: translate(-50%,-50%);
+                -webkit-transform: translate(-50%,-50%);
+                transform: translate(-50%,-50%);  
+            }
+
+            #Settings {
+                position: relative;
+                width: 100%;
+
+                background-color: #eee;
+                display: flex;    
+                display: -webkit-flex;
+                flex-direction: column;
+                -webkit-flex-direction: column;
+            }
+
+            #Settings > div {
+                position: relative;
+                margin: 2px 0px;
+                flex: 1;
+                -webkit-flex: 1;
+                height: 100px;
+
+                font-family: sans-serif;
+                font-size: 50px;
+                text-align: center;
+                text-transform: uppercase;
+
+                background-color: #ddd;
+            }
+
+            #Settings > div:active {
+                background-color: #ccc
+            }
+
+            #Settings > div > p {
+                position: absolute;
+                top:50%;
+                left:50%;
+                -ms-transform: translate(-50%,-50%);
+                -webkit-transform: translate(-50%,-50%);
+                transform: translate(-50%,-50%);       
+            }
+
+        </style>
     </head>
     <body>  
         <div id="WorldWrapper">
         </div>
-        
+        <div id="Stats">
+            <div id="Two">
+                <div id="GenerationCounter">GenerationCounter</div>
+                <div id="TimeLeft">TimeLeft</div>
+            </div>
+            <div id="EntitiesStates"></div>
+        </div>
+        <div id="Settings">
+            <div id="Speed" onclick=""><p></p></div>
+            <div id="Restart">
+                <p>Restart</p>
+            </div>
+            <div></div>
+            <div></div>
+            <div></div>
+        </div>
         
         <script src="js/matter-0.8.0.min.js"></script>
         <script src="js/synaptic.js"></script>
