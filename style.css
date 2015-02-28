@@ -10,9 +10,96 @@ body {
     background-color: #eee;
 }
 
-#WorldWrapper > * {
+#WorldWrapper > canvas {
     margin: auto;
-    left: 0;
-    right: 0;
+    position: relative;
+}
+
+#Two {
+    width: 100%;
+    display: flex;
+    display: -webkit-flex;
+    display: -ms-flex;
+    justify-content: space-between;
+    font-family: Arial,sans-serif;
+    font-size: 50px;
+    text-align: center;
+}
+
+#Two > div{
+    flex: 1;
+    -webkit-flex: 1;
+    -ms-flex: 1;
+    background-color: #eee;
+    margin: 0px 2px;
+}
+
+#EntitiesStates {
+    height: 100px;
+    width: 100%;
+    display: flex;
+    display: -webkit-flex;
+    display: -ms-flex;
+    justify-content: space-between;
+}
+
+#EntitiesStates > div {
+    flex: 1;
+    -webkit-flex: 1;
+    -ms-flex: 1;
+    
+    background-color: #ddd;
+    margin: 0px 2px;
+    text-align: center;
+    font-size: 40px;
+    font-family: sans-serif;
+    position: relative;
+}
+
+#EntitiesStates > div > p {
     position: absolute;
+    top:50%;
+    left:50%;
+    -ms-transform: translate(-50%,-50%);
+    -webkit-transform: translate(-50%,-50%);
+    transform: translate(-50%,-50%);  
+}
+
+#Settings {
+    position: relative;
+    width: 100%;
+    
+    background-color: #eee;
+    display: flex;    
+    display: -webkit-flex;
+    flex-direction: column;
+    -webkit-flex-direction: column;
+}
+
+#Settings > div {
+    position: relative;
+    margin: 2px 0px;
+    flex: 1;
+    -webkit-flex: 1;
+    height: 100px;
+    
+    font-family: sans-serif;
+    font-size: 50px;
+    text-align: center;
+    text-transform: uppercase;
+    
+    background-color: #ddd;
+}
+
+#Settings > div:active {
+    background-color: #ccc
+}
+
+#Settings > div > p {
+    position: absolute;
+    top:50%;
+    left:50%;
+    -ms-transform: translate(-50%,-50%);
+    -webkit-transform: translate(-50%,-50%);
+    transform: translate(-50%,-50%);       
 }
