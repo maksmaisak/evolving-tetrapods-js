@@ -33,17 +33,17 @@ var engine = Engine.create(document.getElementById('WorldWrapper'),{
             wireframeBackground: '#222',
             hasBounds: true,
             enabled: true,
-            wireframes: true,
+            wireframes: false,
             showSleeping: true,
             showDebug: true,
             showBroadphase: false,
             showBounds: false,
-            showVelocity: true,
+            showVelocity: false,
             showCollisions: true,
             showAxes: false,
             showPositions: false,
             showAngleIndicator: false,
-            showIds: true,
+            showIds: false,
             showShadows: false
         }
     },
@@ -52,9 +52,10 @@ var engine = Engine.create(document.getElementById('WorldWrapper'),{
     }
 });
 
-engine.world.bounds = Bounds.create([   //this is world dimensions
+//world dimensions
+engine.world.bounds = Bounds.create([
     { x: 0, y: 0 },     //min
-    { x: 10000, y: 600 } //max
+    { x: 20000, y: 600 } //max
 ]);
 
 //LOOPS region
@@ -66,7 +67,6 @@ Events.on( engine, "tick", function() {
     Bounds.shift( bounds, findFarthestHorse(horses).body.bodies[0].position );
     Bounds.translate( bounds, Vector.neg( Vector.div( Vector.sub( bounds.max, bounds.min ), 2)) );
     
-    //console.log(horses[0].body.bodies[0].angle);
     
     //legs' collisions tracking region
     for ( i = 0; i < horses.length; i++) {
@@ -103,20 +103,14 @@ Events.on( engine, "tick", function() {
         }
     }
     //legs' collisions tracking endregion
-    //console.log(horses[0].legsTouch);
     
     for ( i = 0; i < horses.length; i++) {
-        console.log(horses[i].perceive());
-        //horses[i].think( horses[i].perceive() );
+        horses[i].act( horses[i].think( horses[i].perceive() ) );
     }
-    
 });
 
-/*Events.on( engine, "collisionStart", function(pairs) {
-    console.log(pairs);
-});*/
-
 //LOOPS endregion
+
 //FUNCTIONS region
 
 //returns the COMPOSITE farthest from the (0,0) point
@@ -129,6 +123,9 @@ function findFarthestHorse( horses ) {
             maxDistance = currDistance;
             farthest = horses[i];
         }
+    }
+    if (farthest == undefined) {
+        farthest = horses[0];
     }
     return farthest;
 }
@@ -144,22 +141,44 @@ function relAngle( constraint ) {
 }
 
 //FUNCTIONS endregion
+
 //HORSE region
 
 //make a horse
 function horse( baseWidth, baseHeight, basePos ){
     
+    //legs as matter.js COMPOUNDS
+    this.legs = [];
+    
+    //touch sensory info will be stored here and used in perceive method
+    this.legsTouch = [];
+    
+    //muscles as matter.js CONSTRAINTS. Use their STIFFNESS property to contract
+    this.muscles = [];
+    
     //making the brain
     var limbs = horse.prototype.frontLegs + horse.prototype.rearLegs;
     var joints = limbs * 2;
     this.brain = new Architect.Perceptron( joints + limbs + 1 , 8, joints );
+    
+    //set the brain's activation function (squash)
+    var layers = [].concat(this.brain.layers.hidden, [this.brain.layers.input, this.brain.layers.output]);
+    for ( var i = 0; i < layers.length; i++ ) {
+        layers[i].set({
+            squash : Neuron.squash.TANH
+        });
+    }
 
     //the main rectangle legs are attached to
     var base = Bodies.rectangle(
         basePos.x, 
         basePos.y, 
         baseWidth, 
-        baseHeight
+        baseHeight,
+        {   
+            //default is 0.001
+            density: 0.001   
+        }
     );
     
     //making the body
@@ -170,7 +189,6 @@ function horse( baseWidth, baseHeight, basePos ){
     });
     
     this.id = this.body.id;
-    console.log(this.id);
     
     //making front legs
     this.legsFront = [];
@@ -185,7 +203,6 @@ function horse( baseWidth, baseHeight, basePos ){
     }
 
     this.body.composites = this.legs;
-    
     var bodies = Composite.allBodies(this.body);
     for ( var i = 0; i < bodies.length; i++ ) {
         bodies[i].groupId = 1;
@@ -197,30 +214,36 @@ horse.prototype = {
     frontLegs : 2,
     rearLegs : 2,
     
-    //legs as matter.js COMPOUNDS
-    legs: [],
     
-    //touch sensory info will be stored here and used in perceive method
-    legsTouch : [],
+    //max muscle STIFFNESS (-limit,limit)
+    limit : 0.05,
     
     //make a leg
-    leg: function leg( body, relPos ) {
-        var position = {x: body.position.x + relPos.x, y: body.position.y + relPos.y};
-        var trapA = Bodies.trapezoid(
+    leg : function leg( base, relPos ) {
+        
+        var upperWidth = 30;
+        var upperHeight = 80;
+        var lowerWidth = 20;
+        var lowerHeight = 80;
+        var holderStiffness = 0.1;
+        var holderOffset = { x: 40, y: -10 };
+        
+        var position = {x: base.position.x + relPos.x, y: base.position.y + relPos.y};
+        var upper = Bodies.trapezoid(
             position.x, 
             position.y, 
-            30, 
-            80, 
+            upperWidth, 
+            upperHeight, 
             -0.1, 
             {
                 label: 'leg-upper-' + this.body.id + '-' + this.legs.length
             }
         );
-        var trapB = Bodies.trapezoid(
+        var lower = Bodies.trapezoid(
             position.x, 
             position.y, 
-            20, 
-            80, 
+            lowerWidth, 
+            lowerHeight, 
             -0.5, 
             {
                 chamfer:1,
@@ -228,39 +251,142 @@ horse.prototype = {
             }
         ); 
         
+        //hip muscle
+        var muscleHip = Constraint.create({
+            bodyA: base,
+            bodyB: upper, 
+            pointA: { x: relPos.x - upperWidth/2, y: 0 },
+            pointB: { x: upperWidth/-2, y: 0 },
+            length: 0,
+            stiffness: 0.001,
+            label: 'muscle-hip-' + this.legs.length,
+            render: {
+                strokeStyle: 'cornflowerblue'
+            }
+        });
+        this.muscles.push(muscleHip);
+        
+        //knee muscle
+        var muscleKnee = Constraint.create({
+            bodyA: upper,
+            bodyB: lower, 
+            pointA: { x: upperWidth/-2, y: 0 },
+            pointB: { x: lowerWidth/-2, y: 0 },
+            length: 0,
+            stiffness: 0.001, 
+            label: 'muscle-knee-' + this.legs.length,
+            render: {
+                strokeStyle: 'cornflowerblue'
+            }
+        });
+        this.muscles.push(muscleKnee);
+        
+        var hip = Constraint.create({ //hip
+            bodyA: base,
+            bodyB: upper, 
+            pointA: { x: relPos.x, y: 0 },
+            pointB: { x: 0, y: upperHeight/-2 + 5 },
+            length: 1,
+            stiffness: 0,
+            label: 'joint',
+            render: {
+                strokeStyle: 'tomato'
+            }
+        });
+        
+        var knee = Constraint.create({ //knee
+            bodyA: upper,
+            bodyB: lower, 
+            pointA: { x: 0, y: upperHeight/2 - 5 },
+            pointB: { x: 0, y: lowerHeight/-2 + 5 },
+            length: 1,
+            stiffness: 0, 
+            label: 'joint',
+            render: {
+                strokeStyle: 'tomato'
+            }
+        });
+
         var readyLeg = Composite.create({
 
-            bodies: [ trapA, trapB ],
+            bodies: [ upper, lower ],
             constraints: [ 
 
-                Constraint.create({ //knee
-                    bodyA: trapA,
-                    bodyB: trapB, 
-                    pointA: { x: 0, y: 35 },
-                    pointB: { x: 0, y: -35 },
-                    length: 1,
-                    stiffness: 1, 
-                    label: 'joint'
+                hip,
+                knee,
+                muscleHip,
+                muscleKnee,
+                
+                //left hip holder
+                Constraint.create({
+                    bodyA: base,
+                    bodyB: upper, 
+                    pointA: Vector.sub( hip.pointA, {x: holderOffset.x, y: 0 }),
+                    pointB: Vector.add( hip.pointB, {x: 0, y: holderOffset.y }),
+                    length: Vector.magnitude(holderOffset),
+                    stiffness: holderStiffness,
+                    label: 'holder',
+                    render: {
+                        lineWidth: 1,
+                        strokeStyle: 'white'
+                    }
                 }),
-
-                Constraint.create({ //hip
-                    bodyA: body,
-                    bodyB: trapA, 
-                    pointA: { x: relPos.x, y: 0 },
-                    pointB: { x: 0, y: -35 },
-                    length: 1,
-                    stiffness: 1,
-                    label: 'joint'
+                
+                //right hip holder
+                Constraint.create({
+                    bodyA: base,
+                    bodyB: upper, 
+                    pointA: Vector.add( hip.pointA, {x: holderOffset.x, y: 0 }),
+                    pointB: Vector.add( hip.pointB, {x: 0, y: holderOffset.y }),
+                    length: Vector.magnitude(holderOffset),
+                    stiffness: holderStiffness,
+                    label: 'holder',
+                    render: {
+                        lineWidth: 1,
+                        strokeStyle: 'white'
+                    }
+                }),
+                
+                //left knee holder
+                Constraint.create({
+                    bodyA: upper,
+                    bodyB: lower, 
+                    pointA: Vector.sub( knee.pointA, {x: holderOffset.x, y: 0 }),
+                    pointB: Vector.add( knee.pointB, {x: 0, y: holderOffset.y }),
+                    length: Vector.magnitude(holderOffset),
+                    stiffness: holderStiffness,
+                    label: 'holder',
+                    render: {
+                        lineWidth: 1,
+                        strokeStyle: 'white'
+                    }
+                }),
+                
+                //right knee holder
+                Constraint.create({
+                    bodyA: upper,
+                    bodyB: lower, 
+                    pointA: Vector.add( knee.pointA, {x: holderOffset.x, y: 0 }),
+                    pointB: Vector.add( knee.pointB, {x: 0, y: holderOffset.y }),
+                    length: Vector.magnitude(holderOffset),
+                    stiffness: holderStiffness,
+                    label: 'holder',
+                    render: {
+                        lineWidth: 1,
+                        strokeStyle: 'white'
+                    }
                 })
 
             ],
             label: 'leg-' + this.body.id
 
         });
-        
         this.legs.push(readyLeg);
         return readyLeg;
     },
+    
+    //the following three methods should be used this way:
+    //this.act( this.think( this.perceive() ) );
     
     //get the sensory info
     perceive : function() {
@@ -275,7 +401,7 @@ horse.prototype = {
                 joints.push( constraints[i] );
             }
         }
-        
+        console.log(joints);
         // angles of joints
         var jointAngles = [];
         for ( var i = 0; i < joints.length; i++ ) {
@@ -293,18 +419,33 @@ horse.prototype = {
     //process the sensory info
     think : function( data ) {
         return this.brain.activate( data );
+    },
+    
+    //contract muscles using the given data ARRAY
+    act : function( data ) {
+        var log = [];
+        for ( var i = 0; i < this.muscles.length; i++ ) {
+            console.log( this.muscles );
+            if (  data[i] > this.limit )            this.muscles[i].stiffness = this.limit;
+            else if ( data[i] < this.limit * -1 )   this.muscles[i].stiffness = this.limit * -1; 
+            else                                    this.muscles[i].stiffness = data[i];
+            
+            log.push( this.muscles[i].stiffness );
+        }
+        //console.log(log);
     }
     
 }
 
 //HORSE endregion
+
 //MAIN region
 
 //create the horses
 var horses = [];
 var horseBodies = [];
-for ( var i = 0; i < 1; i++ ) {
-    horses[i] = new horse( 250, 40, {x: 300 + 100*i, y: 410 - 50*i} );
+for ( var i = 0; i < 10; i++ ) {
+    horses[i] = new horse( 250, 40, {x: 500 + 0*i, y: 480} );
     horseBodies[i] = horses[i].body;
 }
 
@@ -323,7 +464,7 @@ var ground = Bodies.rectangle(
 );
 
 console.log(horses);
-console.log(horseBodies);
+console.log(horses[0].brain);
 
 //load everything into the World
 var objects = [].concat( horseBodies, [ground] );
@@ -332,6 +473,5 @@ World.add(engine.world, objects);
 
 //start the simulation
 Engine.run(engine);
-console.log(engine);
 
 //MAIN endregion
