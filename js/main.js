@@ -1,3 +1,10 @@
+var options = {
+    maxGenerationLength : 15,
+    numberOfHorses : 10,
+    startingPosition : {x: 500, y: 480},
+    mutationRate : 0.05
+}
+
 // Matter.js module aliases
 var Engine = Matter.Engine,
     World = Matter.World,
@@ -55,20 +62,41 @@ var engine = Engine.create(document.getElementById('WorldWrapper'),{
 //world dimensions
 engine.world.bounds = Bounds.create([
     { x: 0, y: 0 },     //min
-    { x: 20000, y: 600 } //max
+    { x: 20000, y: 600 }//max
 ]);
 
 //LOOPS region
 
 Events.on( engine, "tick", function() {
+    
+    //new generation region
+    
+    if ( newGenerationCondition() ) {
+        currentGeneration = new generation( currentGeneration.number + 1, currentGeneration.nextBrains() );
+        this.timing.timestamp = 0;
+        currentGeneration.start();
+        
+        document.getElementById('GenerationCounter').innerHTML = currentGeneration.number;
+    }
+    
+    document.getElementById('TimeLeft').innerHTML = Math.round( options.maxGenerationLength - (this.timing.timestamp / 1000) ) + 's';
+    
+    //new generation endregion
+    
+    var horses = currentGeneration.horses;
+    
+    //camera position region
+    
     var bounds = engine.render.bounds;
     
     //sets the center of the bounds at the farthest's horse position
     Bounds.shift( bounds, findFarthestHorse(horses).body.bodies[0].position );
     Bounds.translate( bounds, Vector.neg( Vector.div( Vector.sub( bounds.max, bounds.min ), 2)) );
     
+    //camera position endregion
     
     //legs' collisions tracking region
+    
     for ( i = 0; i < horses.length; i++) {
         for ( j = 0; j < horse.prototype.frontLegs + horse.prototype.rearLegs; j++) {
             horses[i].legsTouch[j] = 0;
@@ -102,6 +130,7 @@ Events.on( engine, "tick", function() {
             
         }
     }
+    
     //legs' collisions tracking endregion
     
     for ( i = 0; i < horses.length; i++) {
@@ -140,12 +169,157 @@ function relAngle( constraint ) {
     return constraint.bodyB.angle - constraint.bodyA.angle;
 }
 
+//checks whether or not a new GENERATION should start  
+function newGenerationCondition() {
+    if ( 
+        engine.timing.timestamp > 1000 * options.maxGenerationLength ||
+        findFarthestHorse( currentGeneration.horses ).body.bodies[0].position.x >= engine.world.bounds.x -100
+    ) 
+    {
+        return true;
+    }
+    return false;
+}
+
 //FUNCTIONS endregion
+
+//GENERATION region
+
+function generation( number, horseBrains ) {
+    
+    this.number = number;
+    
+    //create the horses with:
+    //a) random brains
+    if (!horseBrains){
+        this.horses = [];
+        this.horseBodies = [];
+        for ( var i = 0; i < options.numberOfHorses; i++ ) {
+            this.horses[i] = new horse( 250, 40, options.startingPosition );
+            this.horseBodies[i] = this.horses[i].body;
+        }
+    }
+    //b) given brains
+    else {
+        this.horses = [];
+        this.horseBodies = [];
+        for ( var i = 0; i < options.numberOfHorses; i++ ) {
+            this.horses[i] = new horse( 250, 40, options.startingPosition, horseBrains[i] );
+            this.horseBodies[i] = this.horses[i].body;
+        }
+    }
+    console.log(engine.world);
+
+    //create a ground
+    this.ground = Bodies.rectangle(
+
+        engine.world.bounds.max.x/2,    //x 
+        610,                            //y
+        engine.world.bounds.max.x,      //width
+        60,                             //height
+        { 
+            isStatic: true,
+            label: 'ground'
+        }
+    
+    );
+    
+}
+
+generation.prototype = {
+    
+    //starts the generation
+    start : function () {
+        //load everything into the World
+        World.clear( engine.world );
+        var objects = [].concat( this.horseBodies, [this.ground] );
+
+        World.add(engine.world, objects);
+
+    },
+    
+    //returns a set of brains for HORSEs for a next generation
+    //a genetic algorithm should be here
+    nextBrains : function () {
+        
+        
+        var result = [];
+        var horses = this.horses;
+        var brains = [];
+        var fitnessSum = 0;
+        
+        for ( var i = 0; i < horses.length; i++ ) {
+            
+            //fitness function: length * speed = l * (l / t) = l^2 / t
+            var length = horses[i].body.bodies[0].position.x - options.startingPosition.x;
+            horses[i].fitness = Math.pow(length, 2) / engine.timing.timestamp
+            fitnessSum += horses[i].fitness;
+            
+            brains.push( horses[i].brain );
+            
+        }
+        
+        //all elements in 'possibilities' array are in range: 0 <= x <= 1
+        var possibilities = [];
+        possibilities[0] = 1/fitnessSum * horses[0].fitness; 
+        for ( var i = 1; i < horses.length; i++ ) {
+            
+        	possibilities[i] = (1/fitnessSum * horses[i].fitness) + possibilities[i-1];
+            
+        }
+        console.log(possibilities);
+        for ( var i = 0; i < horses.length; i++ ) {
+        	
+        	//choose two parents
+        	var value = Math.random();
+            
+        	for ( var j = 0; j < horses.length; j++ ) {
+        		
+        		if ( value <= possibilities[j] ) {
+        			var parentA = brains[j].toJSON();
+                    //this is going to be the new brain
+                    var child = brains[j].clone().toJSON();
+        			break;
+        		}
+        		
+        	}
+        	value = Math.random();
+        	for ( var j = 0; j < horses.length; j++ ) {
+        		
+        		if ( value <= possibilities[j] ) {
+        			var parentB = brains[j].toJSON();
+        			break;
+        		}
+        		
+        	}
+        	//now we have two parents
+            
+            
+        	for ( var j = 0; j < parentA.connections.length; j++ ) {
+                
+                if ( Math.random() < 0.5 ) {
+                    child.connections[j] = parentB.connections[j];
+                }
+                
+                if ( Math.random() < options.mutationRate ) {
+                    child.connections[j] + Math.random() < 0.5 ? Math.random() * -1 : Math.random(); 
+                }
+                
+            }
+        	result.push( Network.fromJSON(child) );
+        }
+        
+        return result;
+        
+    }
+}
+
+//GENERATION endregion
 
 //HORSE region
 
 //make a horse
-function horse( baseWidth, baseHeight, basePos ){
+function horse( baseWidth, baseHeight, basePos, brain ){
     
     //legs as matter.js COMPOUNDS
     this.legs = [];
@@ -159,7 +333,12 @@ function horse( baseWidth, baseHeight, basePos ){
     //making the brain
     var limbs = horse.prototype.frontLegs + horse.prototype.rearLegs;
     var joints = limbs * 2;
-    this.brain = new Architect.Perceptron( joints + limbs + 1 , 8, joints );
+    if (!brain) {
+        this.brain = new Architect.Perceptron( joints + limbs + 1 , 8, joints );
+    }
+    else {
+        this.brain = brain;
+    }
     
     //set the brain's activation function (squash)
     var layers = [].concat(this.brain.layers.hidden, [this.brain.layers.input, this.brain.layers.output]);
@@ -401,7 +580,7 @@ horse.prototype = {
                 joints.push( constraints[i] );
             }
         }
-        console.log(joints);
+        
         // angles of joints
         var jointAngles = [];
         for ( var i = 0; i < joints.length; i++ ) {
@@ -425,7 +604,7 @@ horse.prototype = {
     act : function( data ) {
         var log = [];
         for ( var i = 0; i < this.muscles.length; i++ ) {
-            console.log( this.muscles );
+            
             if (  data[i] > this.limit )            this.muscles[i].stiffness = this.limit;
             else if ( data[i] < this.limit * -1 )   this.muscles[i].stiffness = this.limit * -1; 
             else                                    this.muscles[i].stiffness = data[i];
@@ -441,37 +620,8 @@ horse.prototype = {
 
 //MAIN region
 
-//create the horses
-var horses = [];
-var horseBodies = [];
-for ( var i = 0; i < 10; i++ ) {
-    horses[i] = new horse( 250, 40, {x: 500 + 0*i, y: 480} );
-    horseBodies[i] = horses[i].body;
-}
-
-//create a ground
-var ground = Bodies.rectangle(
-    
-    engine.world.bounds.max.x/2,    //x 
-    610,                            //y
-    engine.world.bounds.max.x,      //width
-    60,                             //height
-    { 
-        isStatic: true,
-        label: 'ground'
-    }
-    
-);
-
-console.log(horses);
-console.log(horses[0].brain);
-
-//load everything into the World
-var objects = [].concat( horseBodies, [ground] );
-
-World.add(engine.world, objects);
-
-//start the simulation
+var currentGeneration = new generation(0);
+currentGeneration.start();
 Engine.run(engine);
 
 //MAIN endregion
