@@ -8,6 +8,7 @@ body {
 #WorldWrapper {
     width: 100%;
     background-color: #eee;
+    overflow-x: hidden;
 }
 
 #WorldWrapper > canvas {
