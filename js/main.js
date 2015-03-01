@@ -1,6 +1,6 @@
 var options = {
     maxGenerationLength : 15,
-    numberOfHorses : 10,
+    numberOfHorses : 15,
     startingPosition : {x: 500, y: 480},
     mutationRate : 0.05
 }
@@ -46,7 +46,7 @@ var engine = Engine.create(document.getElementById('WorldWrapper'),{
             showBroadphase: false,
             showBounds: false,
             showVelocity: false,
-            showCollisions: true,
+            showCollisions: false,
             showAxes: false,
             showPositions: false,
             showAngleIndicator: false,
@@ -406,6 +406,9 @@ horse.prototype = {
         var lowerHeight = 80;
         var holderStiffness = 0.1;
         var holderOffset = { x: 40, y: -10 };
+        var holderRender = {
+            lineWidth: 1
+        }
         
         var position = {x: base.position.x + relPos.x, y: base.position.y + relPos.y};
         var upper = Bodies.trapezoid(
@@ -505,10 +508,7 @@ horse.prototype = {
                     length: Vector.magnitude(holderOffset),
                     stiffness: holderStiffness,
                     label: 'holder',
-                    render: {
-                        lineWidth: 1,
-                        strokeStyle: 'white'
-                    }
+                    render : holderRender
                 }),
                 
                 //right hip holder
@@ -520,10 +520,7 @@ horse.prototype = {
                     length: Vector.magnitude(holderOffset),
                     stiffness: holderStiffness,
                     label: 'holder',
-                    render: {
-                        lineWidth: 1,
-                        strokeStyle: 'white'
-                    }
+                    render : holderRender
                 }),
                 
                 //left knee holder
@@ -535,10 +532,7 @@ horse.prototype = {
                     length: Vector.magnitude(holderOffset),
                     stiffness: holderStiffness,
                     label: 'holder',
-                    render: {
-                        lineWidth: 1,
-                        strokeStyle: 'white'
-                    }
+                    render : holderRender
                 }),
                 
                 //right knee holder
@@ -550,10 +544,7 @@ horse.prototype = {
                     length: Vector.magnitude(holderOffset),
                     stiffness: holderStiffness,
                     label: 'holder',
-                    render: {
-                        lineWidth: 1,
-                        strokeStyle: 'white'
-                    }
+                    render : holderRender
                 })
 
             ],
