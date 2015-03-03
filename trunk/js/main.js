@@ -1,8 +1,13 @@
 var options = {
-    maxGenerationLength : 15,
+    maxGenerationLength : 15,   //seconds
     numberOfHorses : 15,
     startingPosition : {x: 500, y: 480},
-    mutationRate : 0.05
+    mutationRate : 0.02,
+    horseSpeedThreshold : 1,    //min required speed
+    timeBeforeDeath : 4 * 60,   //seconds * 60
+    jointHolders : true,
+    muscleColor : 'rgba(100,149,237,',  //yes, this way
+    jointColor : 'rgba(255,99,71,'
 }
 
 // Matter.js module aliases
@@ -30,12 +35,12 @@ var engine = Engine.create(document.getElementById('WorldWrapper'),{
         bounds: Bounds.create(  //this is viewport area
             [
                 { x: 0, y: 0 },     //min
-                { x: 1024, y: 768 } //max
+                { x: 1024, y: 500 } //max
             ]
         ),
         options: {
             width: 1024,        //this is physical canvas width
-            height: 768,        //and height
+            height: 500,        //and height
             background: '#fafafa',
             wireframeBackground: '#222',
             hasBounds: true,
@@ -72,7 +77,8 @@ Events.on( engine, "tick", function() {
     //new generation region
     
     if ( newGenerationCondition() ) {
-        currentGeneration = new generation( currentGeneration.number + 1, currentGeneration.nextBrains() );
+        var previousGeneration = currentGeneration; 
+        currentGeneration = new generation( previousGeneration.number + 1, previousGeneration.nextBrains() );
         this.timing.timestamp = 0;
         currentGeneration.start();
         
@@ -90,26 +96,68 @@ Events.on( engine, "tick", function() {
     var bounds = engine.render.bounds;
     
     //sets the center of the bounds at the farthest's horse position
-    Bounds.shift( bounds, findFarthestHorse(horses).body.bodies[0].position );
+    Bounds.shift( bounds, findFarthestHorse(horses).position );
     Bounds.translate( bounds, Vector.neg( Vector.div( Vector.sub( bounds.max, bounds.min ), 2)) );
     
     //camera position endregion
     
-    //legs' collisions tracking region
     
+    //a multi-purpose horses loop
     for ( i = 0; i < horses.length; i++) {
+        
         for ( j = 0; j < horse.prototype.frontLegs + horse.prototype.rearLegs; j++) {
             horses[i].legsTouch[j] = 0;
         }
+        
+        //update horse's position and velocity
+        if ( !horses[i].isDead ) {
+            horses[i].position = horses[i].body.bodies[0].position;
+            horses[i].velocity = horses[i].body.bodies[0].velocity;
+        }
+        
+        // check if a horse should die now
+        if ( !horses[i].isDead && horses[i].timeBeforeDeath <= 0 ) {
+            Composite.removeComposite( engine.world, horses[i].body, true );
+            horses[i].isDead = true;
+        } 
+        else if ( horses[i].velocity.x < options.horseSpeedThreshold ) {
+            horses[i].timeBeforeDeath--;
+
+            var opacity = 1 / options.timeBeforeDeath * horses[i].timeBeforeDeath ;
+
+            var bodies = Composite.allBodies(horses[i].body);
+            for ( var j = 0; j < bodies.length; j++ ) {
+                bodies[j].render.fillStyle = 'rgba(200,200,200,' + opacity + ')';
+                bodies[j].render.strokeStyle = 'rgba(100,100,100,' + opacity + ')';
+            }
+
+            var constraints = Composite.allConstraints(horses[i].body);
+            for ( var j = 0; j < constraints.length; j++ ) {
+
+                if ( constraints[j].label.search('muscle') != -1 ) {
+                    constraints[j].render.strokeStyle = options.muscleColor + opacity + ')';
+                }
+                else if ( constraints[j].label == 'joint') {
+                    constraints[j].render.strokeStyle = options.jointColor + opacity + ')';
+                }
+
+            }
+        }
+        else {
+            horses[i].timeBeforeDeath = options.timeBeforeDeath;
+        } 
+        
     }
+    
+    //legs' collisions tracking region
     var collisions = engine.pairs.collisionActive;
     for ( i = 0; i < collisions.length; i++ ) {
         var bodyA = collisions[i].bodyA;
         var bodyB = collisions[i].bodyB;
         
         if (
-            ( bodyA.label == 'ground' && bodyB.label.search( 'leg-lower-' ) !=-1 ) ||
-            ( bodyB.label == 'ground' && bodyA.label.search( 'leg-lower-' ) !=-1 ) 
+            ( bodyA.label == 'ground' && bodyB.label.search( 'leg-lower-' ) != -1 ) ||
+            ( bodyB.label == 'ground' && bodyA.label.search( 'leg-lower-' ) != -1 ) 
         ) 
         {
             
@@ -134,7 +182,9 @@ Events.on( engine, "tick", function() {
     //legs' collisions tracking endregion
     
     for ( i = 0; i < horses.length; i++) {
-        horses[i].act( horses[i].think( horses[i].perceive() ) );
+        if ( !horses[i].isDead ) {
+            horses[i].act( horses[i].think( horses[i].perceive() ) );
+        }
     }
 });
 
@@ -147,10 +197,12 @@ function findFarthestHorse( horses ) {
     var maxDistance = 0;
     var farthest;
     for (var i = 0; i < horses.length; i++){
-        var currDistance = Composite.allBodies( horses[i].body )[0].position.x;
-        if (currDistance >= maxDistance) {
-            maxDistance = currDistance;
-            farthest = horses[i];
+        if ( !horses[i].isDead ){
+            var currDistance = Composite.allBodies( horses[i].body )[0].position.x;
+            if ( currDistance >= maxDistance ) {
+                maxDistance = currDistance;
+                farthest = horses[i];
+            }
         }
     }
     if (farthest == undefined) {
@@ -171,14 +223,24 @@ function relAngle( constraint ) {
 
 //checks whether or not a new GENERATION should start  
 function newGenerationCondition() {
+    
+    var mainCondition = true;
+    var horses = currentGeneration.horses;
+    for ( var i = 0; i < horses.length; i++ ) {
+        if ( !horses[i].isDead ) {
+            mainCondition = false;
+        }
+    }
     if ( 
+        mainCondition ||
         engine.timing.timestamp > 1000 * options.maxGenerationLength ||
-        findFarthestHorse( currentGeneration.horses ).body.bodies[0].position.x >= engine.world.bounds.x -100
+        findFarthestHorse( currentGeneration.horses ).position.x >= engine.world.bounds.x -100
     ) 
     {
         return true;
     }
     return false;
+    
 }
 
 //FUNCTIONS endregion
@@ -208,7 +270,6 @@ function generation( number, horseBrains ) {
             this.horseBodies[i] = this.horses[i].body;
         }
     }
-    console.log(engine.world);
 
     //create a ground
     this.ground = Bodies.rectangle(
@@ -223,7 +284,6 @@ function generation( number, horseBrains ) {
         }
     
     );
-    
 }
 
 generation.prototype = {
@@ -231,11 +291,10 @@ generation.prototype = {
     //starts the generation
     start : function () {
         //load everything into the World
-        World.clear( engine.world );
+        World.clear( engine.world , false );
         var objects = [].concat( this.horseBodies, [this.ground] );
 
         World.add(engine.world, objects);
-
     },
     
     //returns a set of brains for HORSEs for a next generation
@@ -251,7 +310,7 @@ generation.prototype = {
         for ( var i = 0; i < horses.length; i++ ) {
             
             //fitness function: length * speed = l * (l / t) = l^2 / t
-            var length = horses[i].body.bodies[0].position.x - options.startingPosition.x;
+            var length = horses[i].position.x - options.startingPosition.x;
             horses[i].fitness = Math.pow(length, 2) / engine.timing.timestamp
             fitnessSum += horses[i].fitness;
             
@@ -287,8 +346,14 @@ generation.prototype = {
         	for ( var j = 0; j < horses.length; j++ ) {
         		
         		if ( value <= possibilities[j] ) {
-        			var parentB = brains[j].toJSON();
-        			break;
+        			var parentB = brains[j].toJSON()
+        			if (parentB == parentA) {
+        				value = Math.random();
+        				j = 0;
+        			}
+        			else {
+        				break;
+        			}
         		}
         		
         	}
@@ -298,14 +363,28 @@ generation.prototype = {
         	for ( var j = 0; j < parentA.connections.length; j++ ) {
                 
                 if ( Math.random() < 0.5 ) {
-                    child.connections[j] = parentB.connections[j];
+                    child.connections[j].weight = parentB.connections[j].weigh;
                 }
                 
                 if ( Math.random() < options.mutationRate ) {
-                    child.connections[j] + Math.random() < 0.5 ? Math.random() * -1 : Math.random(); 
+                    child.connections[j].weight += Math.random() < 0.5 ? Math.random()/10 * -1 : Math.random()/10; 
                 }
                 
             }
+            
+            for ( var j = 0; j < parentA.neurons.length; j++ ) {
+                
+                if ( Math.random() < 0.5 ) {
+                    child.neurons[j].bias = parentB.neurons[j].bias;
+                }
+                
+                if ( Math.random() < options.mutationRate ) {
+                    child.neurons[j].bias += Math.random() < 0.5 ? Math.random()/10 * -1 : Math.random()/10; 
+                }
+                
+            }
+            
+            
         	result.push( Network.fromJSON(child) );
         }
         
@@ -320,6 +399,12 @@ generation.prototype = {
 
 //make a horse
 function horse( baseWidth, baseHeight, basePos, brain ){
+    
+    //time in which the horse will die if it goes slower than options.horseSpeedThreshold
+    this.timeBeforeDeath = options.timeBeforeDeath;
+    
+    //obvious :)
+    this.isDead = false;
     
     //legs as matter.js COMPOUNDS
     this.legs = [];
@@ -363,9 +448,12 @@ function horse( baseWidth, baseHeight, basePos, brain ){
     //making the body
     this.body = Composite.create({
 
-        bodies: [ base ],
+        bodies: [ base ]
 
     });
+    
+    this.position = this.body.bodies[0].position;
+    this.velocity = this.body.bodies[0].velocity;
     
     this.id = this.body.id;
     
@@ -407,7 +495,8 @@ horse.prototype = {
         var holderStiffness = 0.1;
         var holderOffset = { x: 40, y: -10 };
         var holderRender = {
-            lineWidth: 1
+            lineWidth : 1,
+            strokeStyle : 'rgba(200,200,200,0.5)'
         }
         
         var position = {x: base.position.x + relPos.x, y: base.position.y + relPos.y};
@@ -421,6 +510,7 @@ horse.prototype = {
                 label: 'leg-upper-' + this.body.id + '-' + this.legs.length
             }
         );
+        
         var lower = Bodies.trapezoid(
             position.x, 
             position.y, 
@@ -432,18 +522,18 @@ horse.prototype = {
                 label: 'leg-lower-' + this.body.id + '-' + this.legs.length
             }
         ); 
-        
+                
         //hip muscle
         var muscleHip = Constraint.create({
             bodyA: base,
             bodyB: upper, 
             pointA: { x: relPos.x - upperWidth/2, y: 0 },
-            pointB: { x: upperWidth/-2, y: 0 },
+            pointB: { x: upperWidth/2, y: upperHeight/2 },
             length: 0,
             stiffness: 0.001,
             label: 'muscle-hip-' + this.legs.length,
             render: {
-                strokeStyle: 'cornflowerblue'
+                strokeStyle: options.muscleColor + '1)'
             }
         });
         this.muscles.push(muscleHip);
@@ -452,13 +542,13 @@ horse.prototype = {
         var muscleKnee = Constraint.create({
             bodyA: upper,
             bodyB: lower, 
-            pointA: { x: upperWidth/-2, y: 0 },
+            pointA: { x: upperWidth/2, y: 0 },
             pointB: { x: lowerWidth/-2, y: 0 },
             length: 0,
             stiffness: 0.001, 
             label: 'muscle-knee-' + this.legs.length,
             render: {
-                strokeStyle: 'cornflowerblue'
+                strokeStyle: options.muscleColor + '1)'
             }
         });
         this.muscles.push(muscleKnee);
@@ -467,25 +557,25 @@ horse.prototype = {
             bodyA: base,
             bodyB: upper, 
             pointA: { x: relPos.x, y: 0 },
-            pointB: { x: 0, y: upperHeight/-2 + 5 },
+            pointB: { x: 0, y: upperHeight/-2 + 10 },
             length: 1,
             stiffness: 0,
             label: 'joint',
             render: {
-                strokeStyle: 'tomato'
+                strokeStyle: options.jointColor + '1)'
             }
         });
         
         var knee = Constraint.create({ //knee
             bodyA: upper,
             bodyB: lower, 
-            pointA: { x: 0, y: upperHeight/2 - 5 },
-            pointB: { x: 0, y: lowerHeight/-2 + 5 },
+            pointA: { x: 0, y: upperHeight/2 - 10 },
+            pointB: { x: 0, y: lowerHeight/-2 + 10 },
             length: 1,
             stiffness: 0, 
             label: 'joint',
             render: {
-                strokeStyle: 'tomato'
+                strokeStyle: options.jointColor + '1)'
             }
         });
 
@@ -493,11 +583,19 @@ horse.prototype = {
 
             bodies: [ upper, lower ],
             constraints: [ 
-
+                
                 hip,
                 knee,
                 muscleHip,
-                muscleKnee,
+                muscleKnee
+                
+            ],
+            label: 'leg-' + this.body.id
+
+        });
+        
+        if ( options.jointHolders) {
+           readyLeg.constraints = readyLeg.constraints.concat([
                 
                 //left hip holder
                 Constraint.create({
@@ -547,10 +645,9 @@ horse.prototype = {
                     render : holderRender
                 })
 
-            ],
-            label: 'leg-' + this.body.id
-
-        });
+            ]);
+        }
+        
         this.legs.push(readyLeg);
         return readyLeg;
     },
@@ -602,12 +699,12 @@ horse.prototype = {
             
             log.push( this.muscles[i].stiffness );
         }
-        //console.log(log);
+        //console.log(log):
     }
     
 }
 
-//HORSE endregion
+ //HORSE endregion
 
 //MAIN region
 
