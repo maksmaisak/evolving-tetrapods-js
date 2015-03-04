@@ -99,9 +99,8 @@ Events.on( engine, "tick", function() {
     var bounds = engine.render.bounds;
     
     //sets the center of the bounds at the farthest's horse position
-    Bounds.shift( bounds, findFarthestHorse(horses).position );
+    Bounds.shift( bounds, { x : findFarthestHorse(horses).position.x, y : 400 });
     Bounds.translate( bounds, Vector.neg( Vector.div( Vector.sub( bounds.max, bounds.min ), 2)) );
-    
     //camera position endregion
     
     
