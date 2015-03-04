@@ -49,7 +49,7 @@ var engine = Engine.create(document.getElementById('WorldWrapper'),{
             enabled: true,
             wireframes: false,
             showSleeping: true,
-            showDebug: true,
+            showDebug: false,
             showBroadphase: false,
             showBounds: false,
             showVelocity: false,
@@ -81,6 +81,7 @@ Events.on( engine, "tick", function() {
     if ( newGenerationCondition() ) {
         var previousGeneration = currentGeneration; 
         currentGeneration = new generation( previousGeneration.number + 1, previousGeneration.nextBrains() );
+        delete previousGeneration;  
         this.timing.timestamp = 0;
         currentGeneration.start();
         
@@ -529,8 +530,8 @@ horse.prototype = {
         var muscleHip = Constraint.create({
             bodyA: base,
             bodyB: upper, 
-            pointA: { x: relPos.x - Math.abs( relPos.x / 2 ), y: -1*Math.abs( relPos.x / 2 ) },
-            pointB: { x: upperWidth/2, y: upperHeight/-2 },
+            pointA: { x: relPos.x - upperHeight/2, y: 0 },
+            pointB: { x: 0, y: upperHeight/4 + 10 },
             length: 0,
             stiffness: 0.001,
             label: 'muscle-hip-' + this.legs.length,
@@ -544,7 +545,7 @@ horse.prototype = {
         var muscleKnee = Constraint.create({
             bodyA: upper,
             bodyB: lower, 
-            pointA: { x: upperWidth/2, y: upperHeight/-2 },
+            pointA: { x: 0, y: upperHeight/-2 },
             pointB: { x: lowerWidth/-2, y: lowerHeight/-2 },
             length: 0,
             stiffness: 0.001, 
