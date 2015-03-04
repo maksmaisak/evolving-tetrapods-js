@@ -1,13 +1,15 @@
 var options = {
-    maxGenerationLength : 15,   //seconds
-    numberOfHorses : 15,
+    maxGenerationLength : 25,   //seconds
+    numberOfHorses : 25,
     startingPosition : {x: 500, y: 480},
     mutationRate : 0.02,
     horseSpeedThreshold : 1,    //min required speed
     timeBeforeDeath : 4 * 60,   //seconds * 60
     jointHolders : true,
     muscleColor : 'rgba(100,149,237,',  //yes, this way
-    jointColor : 'rgba(255,99,71,'
+    jointColor : 'rgba(255,99,71,',
+    muscleOpacity : 0.5,
+    jointOpacity : 0.5
 }
 
 // Matter.js module aliases
@@ -135,10 +137,10 @@ Events.on( engine, "tick", function() {
             for ( var j = 0; j < constraints.length; j++ ) {
 
                 if ( constraints[j].label.search('muscle') != -1 ) {
-                    constraints[j].render.strokeStyle = options.muscleColor + opacity + ')';
+                    constraints[j].render.strokeStyle = options.muscleColor + opacity * options.muscleOpacity + ')';
                 }
                 else if ( constraints[j].label == 'joint') {
-                    constraints[j].render.strokeStyle = options.jointColor + opacity + ')';
+                    constraints[j].render.strokeStyle = options.jointColor + opacity * options.jointOpacity + ')';
                 }
 
             }
@@ -483,7 +485,7 @@ horse.prototype = {
     
     
     //max muscle STIFFNESS (-limit,limit)
-    limit : 0.05,
+    limit : 0.1,
     
     //make a leg
     leg : function leg( base, relPos ) {
@@ -527,13 +529,13 @@ horse.prototype = {
         var muscleHip = Constraint.create({
             bodyA: base,
             bodyB: upper, 
-            pointA: { x: relPos.x - upperWidth/2, y: 0 },
-            pointB: { x: upperWidth/2, y: upperHeight/2 },
+            pointA: { x: relPos.x - Math.abs( relPos.x / 2 ), y: -1*Math.abs( relPos.x / 2 ) },
+            pointB: { x: upperWidth/2, y: upperHeight/-2 },
             length: 0,
             stiffness: 0.001,
             label: 'muscle-hip-' + this.legs.length,
             render: {
-                strokeStyle: options.muscleColor + '1)'
+                strokeStyle: options.muscleColor + options.muscleOpacity + ')'
             }
         });
         this.muscles.push(muscleHip);
@@ -542,13 +544,13 @@ horse.prototype = {
         var muscleKnee = Constraint.create({
             bodyA: upper,
             bodyB: lower, 
-            pointA: { x: upperWidth/2, y: 0 },
-            pointB: { x: lowerWidth/-2, y: 0 },
+            pointA: { x: upperWidth/2, y: upperHeight/-2 },
+            pointB: { x: lowerWidth/-2, y: lowerHeight/-2 },
             length: 0,
             stiffness: 0.001, 
             label: 'muscle-knee-' + this.legs.length,
             render: {
-                strokeStyle: options.muscleColor + '1)'
+                strokeStyle: options.muscleColor + options.muscleOpacity + ')'
             }
         });
         this.muscles.push(muscleKnee);
@@ -557,12 +559,12 @@ horse.prototype = {
             bodyA: base,
             bodyB: upper, 
             pointA: { x: relPos.x, y: 0 },
-            pointB: { x: 0, y: upperHeight/-2 + 10 },
+            pointB: { x: 0, y: upperHeight/-2 },
             length: 1,
             stiffness: 0,
             label: 'joint',
             render: {
-                strokeStyle: options.jointColor + '1)'
+                strokeStyle: options.jointColor + options.jointOpacity + ')'
             }
         });
         
@@ -575,7 +577,7 @@ horse.prototype = {
             stiffness: 0, 
             label: 'joint',
             render: {
-                strokeStyle: options.jointColor + '1)'
+                strokeStyle: options.jointColor + options.jointOpacity + ')'
             }
         });
 
@@ -594,7 +596,7 @@ horse.prototype = {
 
         });
         
-        if ( options.jointHolders) {
+        if ( options.jointHolders ) {
            readyLeg.constraints = readyLeg.constraints.concat([
                 
                 //left hip holder
