@@ -2,10 +2,10 @@ var options = {
     maxGenerationLength : 25,   //seconds
     numberOfHorses : 25,
     startingPosition : {x: 500, y: 480},
-    mutationRate : 0.02,
+    mutationRate : 0.05,
     horseSpeedThreshold : 1,    //min required speed
     timeBeforeDeath : 4 * 60,   //seconds * 60
-    jointHolders : true,
+    jointHolders : false,
     muscleColor : 'rgba(100,149,237,',  //yes, this way
     jointColor : 'rgba(255,99,71,',
     muscleOpacity : 0.5,
@@ -79,11 +79,12 @@ Events.on( engine, "tick", function() {
     //new generation region
     
     if ( newGenerationCondition() ) {
-        var previousGeneration = currentGeneration; 
-        currentGeneration = new generation( previousGeneration.number + 1, previousGeneration.nextBrains() );
-        delete previousGeneration;  
-        this.timing.timestamp = 0;
+        var brains = currentGeneration.nextBrains();
+        currentGeneration.free();
+        
+        currentGeneration = new generation( currentGeneration.number + 1, brains );
         currentGeneration.start();
+        this.timing.timestamp = 0;
         
         document.getElementById('GenerationCounter').innerHTML = currentGeneration.number;
     }
@@ -252,51 +253,64 @@ function newGenerationCondition() {
 function generation( number, horseBrains ) {
     
     this.number = number;
+    this.horses = [];
     
     //create the horses with:
     //a) random brains
     if (!horseBrains){
-        this.horses = [];
-        this.horseBodies = [];
         for ( var i = 0; i < options.numberOfHorses; i++ ) {
-            this.horses[i] = new horse( 250, 40, options.startingPosition );
-            this.horseBodies[i] = this.horses[i].body;
+            this.horses[i] = newHorse( 250, 40, options.startingPosition );
         }
     }
     //b) given brains
     else {
-        this.horses = [];
-        this.horseBodies = [];
         for ( var i = 0; i < options.numberOfHorses; i++ ) {
-            this.horses[i] = new horse( 250, 40, options.startingPosition, horseBrains[i] );
-            this.horseBodies[i] = this.horses[i].body;
+            this.horses[i] = newHorse( 250, 40, options.startingPosition, horseBrains[i] );
         }
     }
-
-    //create a ground
-    this.ground = Bodies.rectangle(
-
-        engine.world.bounds.max.x/2,    //x 
-        610,                            //y
-        engine.world.bounds.max.x,      //width
-        60,                             //height
-        { 
-            isStatic: true,
-            label: 'ground'
-        }
     
-    );
+    if ( !currentGeneration || !currentGeneration.ground ) {
+        //create a ground
+        this.ground = Bodies.rectangle(
+
+            engine.world.bounds.max.x/2,    //x 
+            610,                            //y
+            engine.world.bounds.max.x,      //width
+            60,                             //height
+            { 
+                isStatic: true,
+                label: 'ground'
+            }
+
+        );
+    }
+    else {
+        this.ground = currentGeneration.ground;
+    }
 }
 
 generation.prototype = {
     
     //starts the generation
     start : function () {
+        
+        var horseBodies = [];
+        for ( var i = 0; i < this.horses.length; i++ ) {
+            horseBodies.push( this.horses[i].body );
+        }
+        World.clear( engine.world, true );
         //load everything into the World
-        World.clear( engine.world , false );
-        var objects = [].concat( this.horseBodies, [this.ground] );
-
-        World.add(engine.world, objects);
+        if ( this.number == 0 ) 
+            World.add(engine.world, [].concat( horseBodies, [this.ground] ));
+        else 
+            World.add(engine.world, horseBodies);
+        
+    },
+    
+    free : function () {
+        this.horses.forEach( function( horse ) {
+            freeHorse( horse );
+        })
     },
     
     //returns a set of brains for HORSEs for a next generation
@@ -402,79 +416,8 @@ generation.prototype = {
 //make a horse
 function horse( baseWidth, baseHeight, basePos, brain ){
     
-    //time in which the horse will die if it goes slower than options.horseSpeedThreshold
-    this.timeBeforeDeath = options.timeBeforeDeath;
-    
-    //obvious :)
-    this.isDead = false;
-    
-    //legs as matter.js COMPOUNDS
-    this.legs = [];
-    
-    //touch sensory info will be stored here and used in perceive method
-    this.legsTouch = [];
-    
-    //muscles as matter.js CONSTRAINTS. Use their STIFFNESS property to contract
-    this.muscles = [];
-    
-    //making the brain
-    var limbs = horse.prototype.frontLegs + horse.prototype.rearLegs;
-    var joints = limbs * 2;
-    if (!brain) {
-        this.brain = new Architect.Perceptron( joints + limbs + 1 , 8, joints );
-    }
-    else {
-        this.brain = brain;
-    }
-    
-    //set the brain's activation function (squash)
-    var layers = [].concat(this.brain.layers.hidden, [this.brain.layers.input, this.brain.layers.output]);
-    for ( var i = 0; i < layers.length; i++ ) {
-        layers[i].set({
-            squash : Neuron.squash.TANH
-        });
-    }
-
-    //the main rectangle legs are attached to
-    var base = Bodies.rectangle(
-        basePos.x, 
-        basePos.y, 
-        baseWidth, 
-        baseHeight,
-        {   
-            //default is 0.001
-            density: 0.001   
-        }
-    );
-    
-    //making the body
-    this.body = Composite.create({
-
-        bodies: [ base ]
-
-    });
-    
-    this.position = this.body.bodies[0].position;
-    this.velocity = this.body.bodies[0].velocity;
-    
-    this.id = this.body.id;
-    
-    //making front legs
-    this.legsFront = [];
-    for ( var i = 0; i < horse.prototype.frontLegs; i++ ) {
-        this.legsFront.push( this.leg( base, {x: baseWidth/2.2, y: 0} ) );
-    }
-    
-    //making rear legs
-    this.legsRear = [];
-    for ( var i = 0; i < horse.prototype.rearLegs; i++ ) {
-        this.legsRear.push( this.leg( base, {x: baseWidth/-2.2, y: 0} ) );
-    }
-
-    this.body.composites = this.legs;
-    var bodies = Composite.allBodies(this.body);
-    for ( var i = 0; i < bodies.length; i++ ) {
-        bodies[i].groupId = 1;
+    if ( baseWidth && baseHeight && basePos ) {
+        brain ? this.initialize( baseWidth, baseHeight, basePos, brain ) : this.initialize( baseWidth, baseHeight, basePos );
     }
 }
 
@@ -483,9 +426,89 @@ horse.prototype = {
     frontLegs : 2,
     rearLegs : 2,
     
-    
     //max muscle STIFFNESS (-limit,limit)
     limit : 0.1,
+    
+    //initializes horse's fields
+    initialize : function( baseWidth, baseHeight, basePos, brain ) {
+        
+        //time in which the horse will die if it goes slower than options.horseSpeedThreshold
+        this.timeBeforeDeath = options.timeBeforeDeath;
+
+        //obvious :)
+        this.isDead = false;
+
+        //legs as matter.js COMPOUNDS
+        this.legs = [];
+
+        //touch sensory info will be stored here and used in perceive method
+        this.legsTouch = [];
+
+        //muscles as matter.js CONSTRAINTS. Use their STIFFNESS property to contract
+        this.muscles = [];
+        
+        //making the brain
+        var limbs = horse.prototype.frontLegs + horse.prototype.rearLegs;
+        var joints = limbs * 2;
+        if (!brain) {
+            this.brain = new Architect.Perceptron( joints + limbs + 1 , 8, joints );
+
+            //set the brain's activation function (squash)
+            var layers = [].concat(this.brain.layers.hidden, [this.brain.layers.input, this.brain.layers.output]);
+            for ( var i = 0; i < layers.length; i++ ) {
+
+                layers[i].set({
+                    squash : Neuron.squash.TANH
+                });
+
+            }
+        }
+        else {
+            this.brain = brain;
+        }
+        
+        //the main rectangle legs are attached to
+        var base = Bodies.rectangle(
+            basePos.x, 
+            basePos.y, 
+            baseWidth, 
+            baseHeight,
+            {   
+                //default is 0.001
+                density: 0.001   
+            }
+        );
+
+        //making the body
+        this.body = Composite.create({
+
+            bodies: [ base ]
+
+        });
+
+        this.position = this.body.bodies[0].position;
+        this.velocity = this.body.bodies[0].velocity;
+
+        this.id = this.body.id;
+
+        //making front legs
+        this.legsFront = [];
+        for ( var i = 0; i < horse.prototype.frontLegs; i++ ) {
+            this.legsFront[i] = this.leg( base, {x: baseWidth/2.2, y: 0} );
+        }
+
+        //making rear legs
+        this.legsRear = [];
+        for ( var i = 0; i < horse.prototype.rearLegs; i++ ) {
+            this.legsRear[i] = this.leg( base, {x: baseWidth/-2.2, y: 0} );
+        }
+
+        this.body.composites = this.legs;
+        var bodies = Composite.allBodies(this.body);
+        for ( var i = 0; i < bodies.length; i++ ) {
+            bodies[i].groupId = 1;
+        }
+    },
     
     //make a leg
     leg : function leg( base, relPos ) {
@@ -706,7 +729,51 @@ horse.prototype = {
     
 }
 
- //HORSE endregion
+//HORSE endregion
+
+//POOL region
+
+//horse pooling
+var horsePool = [];
+
+for (var i = 0; i < options.numberOfHorses; i++)
+    horsePool.push( new horse() );
+ 
+// a constructor/factory function
+
+function newHorse( baseWidth, baseHeight, basePos, brain )
+{
+    var h = null;
+ 
+    // check to see if there is a spare one
+    if (horsePool.length > 0) {
+        
+        h = horsePool.pop();
+        brain ? h.initialize( baseWidth, baseHeight, basePos, brain ) : h.initialize( baseWidth, baseHeight, basePos );
+        
+    }
+    else  {
+        // none left, construct a new one
+        h = new horse( baseWidth, baseHeight, basePos, brain );	
+    }
+ 
+    // move the new horse to the active array
+    //currentGeneration.horses.push( horse );
+    return h;
+}
+ 
+function freeHorse( h )
+{
+    // Not using indexOf since it wont work in IE8 and below
+    for (var i = 0, l = currentGeneration.horses.length; i < l; i++)
+        if ( currentGeneration.horses[i] == h )
+            currentGeneration.horses.splice(i, 1);
+	
+    // return the horse back into the pool
+    horsePool.push( h );
+}
+
+//POOL endregion
 
 //MAIN region
 
