@@ -1,5 +1,7 @@
 # evolving-tetrapods-js
 
+### [Demo][demo link]
+
 It is a simulation of simple environments populated by [intelligent agents] which use [artificial neural networks] to make decisions. The general idea is as follows.
 
 Each agent contains a simple neural network (a [multilayer perceptron]) which is, essentially, a function which takes and returns a set of numbers. The input of the NN is the data from various "sensors", represented by numbers. The outputs are used to determine the actions of the agent. 
@@ -12,7 +14,7 @@ The project features 2D, four-legged creatures on a flat surface. Each "horse" c
 
 Each update, the neural network of each horse is provided with data regarding the rotation of the body in general, the relative angles of each joint and whether or not the legs touch the ground. The outputs of the NN define the stiffness values for each muscle, causing them to extend or contract. 
 
-The project was written in JavaScript. I used [Matter.js] for physics simulation. [Synaptic.js] was used to create the neural networks to act as the horses' brains. An online demonstration is available [here](http://fazan64.github.io/evolving-tetrapods-js/). 
+The project was written in JavaScript. I used [Matter.js] for physics simulation. [Synaptic.js] was used to create the neural networks to act as the horses' brains. An online demonstration is available [here][demo link]. 
 
 [intelligent agents]: https://en.wikipedia.org/wiki/Intelligent_agent
 [artificial neural networks]: https://en.wikipedia.org/wiki/Artificial_neural_network
@@ -20,3 +22,4 @@ The project was written in JavaScript. I used [Matter.js] for physics simulation
 
 [Matter.js]: http://brm.io/matter-js/
 [Synaptic.js]: http://caza.la/synaptic/
+[demo link]: http://fazan64.github.io/evolving-tetrapods-js/
