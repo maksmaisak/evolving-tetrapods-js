@@ -10,7 +10,7 @@ The agents' behavior in the environment is simulated in short "rounds". At the e
 
 ---
 
-The project features 2D, four-legged creatures on a flat surface. Each "horse" consists of a number of different shapes which are connected with inextensible "joints" and extensible "muscles". Each muscle can contract or expand, causing movement of the connected parts. The fitness of the horses depends solely on the distance along the surface they manage to traverse over the course of a single round. The intended effect was to have horses' brains evolve over many generations to learn to walk or gallop. 
+The agents are 2D, four-legged creatures on a flat surface. Each "horse" consists of a number of different shapes which are connected with inextensible "joints" and extensible "muscles". Each muscle can contract or expand, causing movement of the connected parts. The fitness of the horses depends solely on the distance along the surface they manage to traverse over the course of a single round. The intended effect was to have horses' brains evolve over many generations to learn to walk or gallop. 
 
 Each update, the neural network of each horse is provided with data regarding the rotation of the body in general, the relative angles of each joint and whether or not the legs touch the ground. The outputs of the NN define the stiffness values for each muscle, causing them to extend or contract. 
 
